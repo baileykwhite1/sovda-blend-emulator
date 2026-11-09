@@ -1,0 +1,1237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOVDA Blend Emulator — SOVDA</title>
+<meta name="description" content="Software emulator of the SOVDA Blend drum blender and its Smart Line Plus touch panel. Practise Auto and Manual operation, timing and unload-door setup without a machine.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+/* SOVDA Blend emulator — Smart Line Plus HMI skin + instructor rig.
+   Colours and proportions traced from photos of the live panel (Nov 2026).
+   Everything inside #hmi is sized in cqw/cqh so the screen scales as one unit. */
+
+:root {
+  --or:        #f26a1f;   /* SOVDA Blend HMI orange */
+  --or-dk:     #d9570f;
+  --tick:      #f0502a;
+  --ink:       #111111;
+  --ink-2:     #3a3b3d;
+  --muted:     #7a7b7e;
+  --cream:     #f0eee3;
+  --sgrey:     #e6e7e8;
+  --card-h:    #dde2ea;
+  --card-b:    #f2f3f5;
+  --drum-row:  #eceef1;
+  --drum-row-y:#f3f1e3;
+  --screen:    #f7f7f7;
+
+  /* rig / analysis surface (dark) — same system as the Precision Fill emulator */
+  --rig-bg:    #15161a;
+  --rig-card:  #1a1a19;
+  --rig-line:  #2c2c2a;
+  --rig-ink:   #ffffff;
+  --rig-ink-2: #c3c2b7;
+  --rig-muted: #898781;
+  --teal:      #17696c;
+  --teal-lt:   #2a9b9f;
+  --st-good:   #32d14a;
+  --st-warn:   #fab219;
+  --st-crit:   #d03b3b;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: #0e0f12;
+  color: var(--rig-ink);
+  font-family: Manrope, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+#app {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 18px;
+  align-items: start;
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: 18px;
+}
+@media (max-width: 1100px) { #app { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------------- machine shell ---------------- */
+
+.machine { min-width: 0; }
+
+.bezel {
+  background: linear-gradient(#34373d, #1d1f23);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 18px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.1);
+}
+.bezel-top {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 4px 10px;
+  color: #9aa3b2; font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+}
+.bezel-top b { color: #e7ebf2; letter-spacing: .12em; }
+.bezel-top .alarm { color: #ff7b7b; }
+
+#hmi {
+  position: relative;
+  aspect-ratio: 800 / 480;
+  width: 100%;
+  background: var(--screen);
+  color: var(--ink);
+  border-radius: 3px;
+  overflow: hidden;
+  container-type: size;
+  user-select: none;
+  box-shadow: inset 0 0 0 1px #bfc3c7, 0 0 0 3px #0d1016;
+  font-family: Manrope, "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+#hmi button { font-family: inherit; cursor: pointer; }
+#hmi [hidden] { display: none !important; }
+
+/* ---------------- sidebar ---------------- */
+
+.side { position: absolute; left: 0; top: 0; bottom: 0; width: 21cqw; }
+.side .blk { position: absolute; left: 0; right: 0; }
+.blk.b1 { top: 0;    height: 19.5cqh; background: var(--cream); }
+.blk.b2 { top: 19.5cqh; height: 40cqh; background: var(--sgrey); }
+.blk.b3 { top: 59.5cqh; bottom: 0;   background: var(--cream); }
+
+.logo {
+  position: absolute; left: 1.6cqw; top: 3.6cqh;
+  color: #2b2c2e; line-height: 1;
+}
+.logo .word {
+  display: flex; gap: .95cqw; font-size: 3.1cqw; font-weight: 500; letter-spacing: 0;
+}
+.logo .word span { display: inline-block; position: relative; }
+.logo .word span.o::before {
+  content: ""; position: absolute; left: .1cqw; right: .1cqw; top: -1.6cqh; height: .22cqw; background: #2b2c2e;
+}
+.logo .sub {
+  margin-top: 1.1cqh; font-size: .98cqw; letter-spacing: .26em; color: #5d5e61; font-weight: 500;
+}
+
+.nav {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  display: flex; align-items: center; gap: 1.2cqw; padding: 0 0 0 2.2cqw;
+  background: none; border: 0; color: var(--muted);
+  font-size: 1.55cqw; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; text-align: left;
+}
+.nav svg { width: 2.6cqw; height: 2.6cqw; fill: #9a9b9e; flex: none; transition: opacity .15s; }
+.nav.active svg { opacity: .22; }
+.nav.active { color: #8c8d90; }
+.nav:hover { color: var(--ink-2); background: rgba(0,0,0,.03); }
+.nav:active { background: rgba(0,0,0,.07); }
+
+/* ---------------- main area ---------------- */
+
+.main { position: absolute; left: 21cqw; top: 0; right: 0; bottom: 0; }
+.screen { position: absolute; inset: 0; display: none; }
+.screen.on { display: block; }
+
+/* mode switch */
+.modes {
+  position: absolute; top: 5cqh; left: 50%; transform: translateX(-50%);
+  display: flex; border: .32cqw solid var(--or); background: #fff;
+}
+.modes button {
+  border: 0; background: #fff; color: var(--or);
+  padding: .9cqh 2.4cqw; font-size: 2.6cqw; font-weight: 500; letter-spacing: .02em; line-height: 1.25;
+}
+.modes button.on { background: var(--or); color: #fff; }
+
+/* auto stage */
+.stage {
+  position: absolute; left: 0; right: 0; top: 18cqh; bottom: 0;
+  display: flex; flex-direction: column; align-items: center;
+}
+.stage .big {
+  font-size: 7cqw; font-weight: 700; letter-spacing: -.01em; margin-top: 14cqh; line-height: 1.05;
+}
+.stage .big.sm { font-size: 6.4cqw; }
+.stage .timer {
+  font-size: 3cqw; font-weight: 600; letter-spacing: .18em; margin-top: 7cqh; font-variant-numeric: tabular-nums;
+}
+.stage .acts {
+  display: flex; justify-content: space-between; width: 74%; margin-top: 7cqh;
+}
+.stage .acts.one { justify-content: center; }
+.stage .acts.idle { margin-top: 25cqh; }
+.hbtn {
+  background: #fff; border: .18cqw solid #111; color: #111;
+  padding: 2cqh 2.6cqw; font-size: 2.4cqw; font-weight: 600; min-width: 17cqw; line-height: 1.2;
+}
+.hbtn:hover { background: #f3f3f3; }
+.hbtn:active { background: #e9e9e9; }
+
+/* manual grid */
+.man {
+  position: absolute; left: 4cqw; right: 3cqw; top: 30cqh;
+  display: grid; grid-template-columns: 1fr 1.15fr; column-gap: 5cqw;
+}
+.man .col { display: grid; row-gap: 3.6cqh; align-content: start; }
+.man .row { display: flex; align-items: center; gap: 3cqw; }
+.man .row .lab { font-size: 3.4cqw; font-weight: 500; min-width: 10.5cqw; color: #1c1c1e; white-space: nowrap; }
+.tg {
+  display: flex; border: .25cqw solid var(--or); background: #fff; padding: 0; overflow: hidden;
+}
+.tg span {
+  display: block; min-width: 9.8cqw; padding: 1cqh 1cqw; text-align: center;
+  font-size: 2.05cqw; font-weight: 500; color: var(--or); background: #fff; letter-spacing: .02em;
+}
+.tg span.on { background: var(--or); color: #fff; }
+.tg.dim { opacity: .35; pointer-events: none; }
+
+/* settings pages */
+.plink {
+  position: absolute; top: 4.2cqh; background: none; border: 0;
+  font-size: 2.45cqw; font-weight: 500; color: #2a2b2d; letter-spacing: .005em;
+}
+.plink.l { left: 2.2cqw; }
+.plink.r { right: 2.6cqw; }
+.plink:hover { color: #000; text-decoration: underline; }
+
+.scard { position: absolute; }
+.scard .ch { background: var(--card-h); text-align: center; padding: 1.1cqh .8cqw .9cqh; }
+.scard .ch h4 { margin: 0; font-size: 3.15cqw; white-space: nowrap; font-weight: 400; letter-spacing: -.005em; color: #222; line-height: 1.1; }
+.scard .ch p  { margin: .5cqh 0 0; font-size: 1.42cqw; color: #7d7f84; line-height: 1.3; font-weight: 500; }
+.scard .cb { background: var(--card-b); padding: 1.2cqh 1.2cqw 1.4cqh; }
+.scard.dim .ch h4, .scard.dim .ch p { color: #b3b6bc; }
+.scard.dim .cb { opacity: .55; }
+.scard.dim .drum { pointer-events: none; }
+
+/* drums (scroll pickers) */
+.drum { display: grid; row-gap: .5cqh; margin: 0 auto; }
+.drum .r {
+  display: flex; justify-content: center; align-items: center; gap: .8cqw;
+  background: var(--drum-row); border: 0; padding: .35cqh .6cqw;
+  font-size: 2.2cqw; color: #b9bcc1; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.25;
+}
+.drum.y .r { background: var(--drum-row-y); }
+.drum .r.c { background: #fafafa; font-size: 3.7cqw; color: #111; font-weight: 500; padding: .5cqh .6cqw; }
+.drum .r span { min-width: 3.4cqw; text-align: center; }
+.drum .r .colon { min-width: 0; opacity: .7; }
+.drum .r .unit { min-width: 0; margin-left: .3cqw; }
+.drum .r.c .edit { background: #1d3fbe; color: #fff; border-radius: .2cqw; }
+.drum .r:hover { filter: brightness(.97); }
+.drum .r.c span.tap { cursor: pointer; border-radius: .25cqw; }
+.drum .r.c span.tap:hover { background: #e4e7ec; }
+
+/* radios & checks */
+.optrow { display: flex; justify-content: center; gap: 1cqw; }
+.opt { display: grid; justify-items: center; gap: 1.2cqh; background: none; border: 0; padding: .4cqh 1cqw; }
+.opt .ol { font-size: 2.55cqw; font-weight: 500; color: #222; }
+.opt .ol.sm { font-size: 2.3cqw; }
+.radio {
+  width: 4.6cqw; height: 4.6cqw; border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 67%, var(--or) 69% 100%);
+}
+.radio.on { background: radial-gradient(circle, var(--or) 0 54%, #fff 56% 68%, var(--or) 70% 100%); }
+.chk {
+  width: 4.4cqw; height: 4.4cqw; border: .32cqw solid var(--tick); background: #fff; position: relative;
+}
+.chk.on::after {
+  content: ""; position: absolute; left: 1.15cqw; top: -1.7cqw; width: 1.6cqw; height: 4.4cqw;
+  border-right: .7cqw solid var(--tick); border-bottom: .7cqw solid var(--tick); transform: rotate(40deg);
+}
+.opt:focus-visible { outline: .2cqw solid #4a8fe0; }
+
+/* config fields */
+.prow { display: flex; align-items: center; gap: 1.6cqw; margin-top: 2.6cqh; }
+.prow .pl { font-size: 2.35cqw; font-weight: 500; color: #222; flex: 1; white-space: nowrap; }
+.prow .pu { font-size: 2.3cqw; font-weight: 500; color: #222; min-width: 4.5cqw; }
+.pf {
+  display: inline-block; border: .25cqw solid var(--or); border-radius: .7cqw; background: #fff;
+  min-width: 8.4cqw; padding: .35cqh 1cqw; text-align: center;
+  font-size: 2.45cqw; color: #666; font-weight: 500; font-variant-numeric: tabular-nums;
+}
+.pf.ro { color: #777; cursor: default; }
+.pf:not(.ro):hover { background: #fff5ef; }
+.pf .edit { background: #1d3fbe; color: #fff; border-radius: .2cqw; padding: 0 .3cqw; }
+
+/* keypad (covers the whole screen width, like the panel's own) */
+.kbd {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 50cqh;
+  background: #e4e7eb; border-top: .15cqw solid #cfd3d8; display: none;
+  grid-template-columns: repeat(6, 1fr); grid-template-rows: repeat(4, 1fr);
+  gap: .7cqh .6cqw; padding: 1cqh .9cqw .9cqh;
+}
+.kbd.on { display: grid; }
+.kbd button {
+  border: 0; background: #d7dbe0; color: #333; font-size: 2.1cqw; font-weight: 500; border-radius: .15cqw;
+}
+.kbd button:hover { background: #cdd2d8; }
+.kbd button:active { background: #c0c6cd; }
+.kbd button.dim { color: #b7bbc1; pointer-events: none; }
+.kbd button.wide { grid-column: span 1; }
+.kbd-icons {
+  position: absolute; right: 2.4cqw; bottom: 51.5cqh; display: none; gap: 2.6cqw; color: #333; font-size: 2cqw;
+}
+.kbd-icons.on { display: flex; }
+.kbd-icons svg { width: 2.6cqw; height: 2.6cqw; fill: #333; }
+
+/* ---------------- rig panel ---------------- */
+
+.rig { display: grid; gap: 12px; min-width: 0; }
+.card { background: var(--rig-card); border: 1px solid var(--rig-line); border-radius: 10px; padding: 12px 14px; }
+.card h3 {
+  margin: 0 0 10px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--rig-muted); font-weight: 600;
+}
+
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tile { background: #202127; border: 1px solid var(--rig-line); border-radius: 8px; padding: 8px 9px; }
+.tile .lab { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--rig-muted); }
+.tile .val { font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.tile .sub { font-size: 10.5px; color: var(--rig-ink-2); }
+.tile.ok .val { color: var(--st-good); }
+.tile.warn .val { color: var(--st-warn); }
+.tile.crit .val { color: var(--st-crit); }
+
+#schem { width: 100%; display: block; margin-bottom: 8px; }
+#schem text { font-family: Manrope, system-ui, sans-serif; fill: var(--rig-muted); font-size: 8.5px; letter-spacing: .05em; text-transform: uppercase; }
+#schem .pipe { stroke: #3a3c44; stroke-width: 7; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+#schem .hose { stroke: #6a6f7c; stroke-width: 5; fill: none; stroke-linecap: round; stroke-dasharray: 1.6 2.4; }
+#schem .beans-pipe { stroke: #a9743f; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 1.5 6; opacity: 0; }
+#schem .beans-pipe.live { opacity: 1; animation: flow .9s linear infinite; }
+#schem .steel { fill: #262830; stroke: #3d404a; stroke-width: 1.2; }
+#schem .coffee { fill: #6b4a2b; }
+#schem .ring { fill: none; stroke: #6b4a2b; stroke-width: 0; transition: stroke-width .3s; }
+#schem .bean { fill: #a9743f; }
+#schem #beans { transform-box: fill-box; transform-origin: center; opacity: 0; transition: opacity .3s; }
+#schem #arms { transform-box: view-box; transform-origin: 205px 96px; }
+#schem .arm line { stroke: #8d93a3; stroke-width: 3; stroke-linecap: round; }
+#schem .arm rect { fill: #a4aab8; stroke: #d7dbe4; stroke-width: .6; }
+#schem .rim { fill: none; stroke: #6a6f7c; stroke-width: 1.6; stroke-dasharray: 1.2 5.5; transform-box: fill-box; transform-origin: center; }
+#schem #beans.turning { opacity: 1; }
+#schem .door { fill: #3d404a; stroke: #6a6f7c; stroke-width: 1; transition: transform .35s; transform-box: fill-box; }
+#schem .door.open { fill: var(--teal-lt); stroke: var(--teal-lt); }
+#schem .door.off { opacity: .3; }
+#schem .stream { stroke: #a9743f; stroke-width: 3; fill: none; stroke-linecap: round; stroke-dasharray: 1.5 5; opacity: 0; }
+#schem .stream.live { opacity: 1; animation: flow .6s linear infinite; }
+#schem .sensor { fill: #2a2c33; stroke: #5a5e6a; stroke-width: 1; }
+#schem .sensor.hot { fill: var(--st-good); stroke: var(--st-good); }
+#schem .sensor.off { opacity: .25; }
+#schem .front { fill: #2a2c33; stroke: #5a5e6a; stroke-width: 1; }
+@keyframes flow { to { stroke-dashoffset: -15; } }
+
+.ctl { display: grid; gap: 10px; }
+.ctl label { display: grid; gap: 4px; font-size: 12px; color: var(--rig-ink-2); }
+.ctl .lv { display: flex; justify-content: space-between; }
+.ctl .lv b { color: var(--rig-ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ctl input[type=range] { width: 100%; accent-color: var(--teal-lt); }
+.ctl button.mini, .btn-row button.mini, .mini {
+  background: #24252a; color: var(--rig-ink); border: 1px solid var(--rig-line);
+  border-radius: 6px; padding: 6px 8px; font: 500 12px Manrope, system-ui, sans-serif; cursor: pointer;
+}
+.mini:hover { background: #2e3036; }
+.mini.wide { width: 100%; text-align: left; }
+.btn-row { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.warn { color: var(--st-warn); font-size: 11.5px; margin-top: 6px; line-height: 1.4; }
+.warn:empty { display: none; }
+.bad { color: var(--st-crit); }
+
+.logtable { width: 100%; border-collapse: collapse; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.logtable td { padding: 3px 5px; border-bottom: 1px solid #232320; color: var(--rig-ink-2); vertical-align: top; }
+.logtable td:first-child { color: var(--rig-muted); white-space: nowrap; width: 48px; }
+.logtable tr.hi td { color: var(--rig-ink); }
+.logtable tr.bad td { color: #f0908f; }
+.card .wrap { max-height: 190px; overflow: auto; }
+
+.hint { font-size: 11.5px; color: var(--rig-muted); line-height: 1.45; }
+.hint b { color: var(--rig-ink-2); font-weight: 600; }
+.hint.good { color: var(--st-good); }
+
+.ex { border-top: 1px solid var(--rig-line); padding-top: 9px; margin-top: 9px; }
+.ex:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
+.ex p { margin: 5px 0 0; font-size: 11px; line-height: 1.45; color: var(--rig-muted); }
+.ex.done .mini.wide { border-color: var(--teal-lt); color: var(--st-good); }
+
+details.task { border-top: 1px solid var(--rig-line); padding-top: 8px; margin-top: 8px; }
+details.task summary { cursor: pointer; font-size: 12.5px; color: var(--rig-ink); font-weight: 600; }
+details.task p, details.task ul { font-size: 11.5px; color: var(--rig-ink-2); line-height: 1.5; margin: 6px 0 0; }
+details.task ul { padding-left: 18px; }
+
+/* exam mode: hide the instructor panel so a trainee sees only the machine */
+#app.exam { grid-template-columns: minmax(0, 1fr) 210px; }
+#app.exam .rig > .card:not(.keep) { display: none; }
+#app.exam .examHint { display: block; }
+.examHint { display: none; font-size: 11px; color: var(--rig-muted); line-height: 1.45; margin-top: 8px; }
+@media (max-width: 1100px) { #app.exam { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ================= machine ================= -->
+  <div class="machine">
+    <div class="bezel">
+      <div class="bezel-top">
+        <span>SOVDA <b>Blend</b></span>
+        <span id="bezelState">Smart Line Plus HMI &middot; emulator</span>
+      </div>
+
+      <div id="hmi">
+
+        <!-- ---------- sidebar ---------- -->
+        <div class="side">
+          <div class="blk b1">
+            <div class="logo">
+              <div class="word"><span>S</span><span class="o">O</span><span>V</span><span>D</span><span>A</span></div>
+              <div class="sub">BLENDING SYSTEM</div>
+            </div>
+          </div>
+          <div class="blk b2">
+            <button class="nav active" id="navHome" data-go="home">
+              <svg viewBox="0 0 24 24"><path d="M12 3 2 12h3v8h5v-6h4v6h5v-8h3z"/></svg>HOME
+            </button>
+          </div>
+          <div class="blk b3">
+            <button class="nav" id="navSettings" data-go="settings">
+              <svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.7 7.7 0 0 0-1.7-1L15 3H9l-.4 2.7a7.7 7.7 0 0 0-1.7 1l-2.5-1-2 3.5L4.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.7 7.7 0 0 0 1.7 1L9 21h6l.4-2.7a7.7 7.7 0 0 0 1.7-1l2.5 1 2-3.5zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg>SETTINGS
+            </button>
+          </div>
+        </div>
+
+        <div class="main">
+
+          <!-- ---------- home ---------- -->
+          <section class="screen on" data-screen="home">
+            <div class="modes">
+              <button data-mode="manual" id="mManual">MANUAL</button>
+              <button data-mode="auto" id="mAuto" class="on">AUTO</button>
+            </div>
+
+            <!-- auto -->
+            <div class="stage" id="autoStage">
+              <div class="big" id="bigText" hidden>Blending...</div>
+              <div class="timer" id="timerText" hidden>0 : 0</div>
+              <div class="acts idle" id="acts">
+                <button class="hbtn" data-act="loadblend">Load &amp; Blend</button>
+              </div>
+            </div>
+
+            <!-- manual -->
+            <div class="man" id="manStage" hidden>
+              <div class="col">
+                <div class="row"><span class="lab">Blend</span>
+                  <button class="tg" data-man="blend"><span class="on">OFF</span><span>ON</span></button></div>
+                <div class="row"><span class="lab">Load</span>
+                  <button class="tg" data-man="load"><span class="on">OFF</span><span>ON</span></button></div>
+              </div>
+              <div class="col">
+                <div class="row"><span class="lab">Door 1</span>
+                  <button class="tg" data-door="0"><span>OPEN</span><span class="on">CLOSED</span></button></div>
+                <div class="row"><span class="lab">Door 2</span>
+                  <button class="tg" data-door="1"><span>OPEN</span><span class="on">CLOSED</span></button></div>
+                <div class="row"><span class="lab">Door 3</span>
+                  <button class="tg" data-door="2"><span>OPEN</span><span class="on">CLOSED</span></button></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ---------- settings (times + doors) ---------- -->
+          <section class="screen" data-screen="settings">
+            <button class="plink r" data-go="blender">Configuration Settings &gt;</button>
+
+            <div class="scard" style="left:2cqw; top:13cqh; width:24cqw">
+              <div class="ch"><h4>Load Time</h4><p>Amount of time taken to<br>complete a loading</p></div>
+              <div class="cb"><div class="drum y" data-time="loadTime"></div></div>
+            </div>
+            <div class="scard" style="left:28.5cqw; top:13cqh; width:24cqw">
+              <div class="ch"><h4>Blend Time</h4><p>Amount of time taken to<br>complete a blending cycle</p></div>
+              <div class="cb"><div class="drum y" data-time="blendTime"></div></div>
+            </div>
+            <div class="scard" style="left:55cqw; top:13cqh; width:24cqw">
+              <div class="ch"><h4>Unload Time</h4><p>Amount of time taken to<br>unload blended coffee</p></div>
+              <div class="cb"><div class="drum y" data-time="unloadTime"></div></div>
+            </div>
+
+            <div class="scard" style="left:2cqw; top:58cqh; width:39cqw">
+              <div class="ch"><h4>Enabled Unload Doors</h4><p>Select what unloading doors to enable</p></div>
+              <div class="cb"><div class="optrow" id="doorEnable"></div></div>
+            </div>
+            <div class="scard" style="left:42.5cqw; top:58cqh; width:36.5cqw">
+              <div class="ch"><h4>Default Unload Doors</h4><p>The door used to unload the machine after an<br>'ACTIVE' blending cycle</p></div>
+              <div class="cb"><div class="optrow" id="doorDefault"></div></div>
+            </div>
+          </section>
+
+          <!-- ---------- blender settings (sensor + lift) ---------- -->
+          <section class="screen" data-screen="blender">
+            <button class="plink l" data-go="settings">&lt; Blender Settings</button>
+            <button class="plink r" data-go="config">Pressure Settings&gt;</button>
+
+            <div class="scard" style="left:2cqw; top:13cqh; width:37.5cqw">
+              <div class="ch"><h4>Sensor Enable</h4><p>Select disabled or enable based on the presence<br>of sensors</p></div>
+              <div class="cb"><div class="optrow" id="sensorEnable"></div></div>
+            </div>
+            <div class="scard" style="left:41.5cqw; top:13cqh; width:37.5cqw">
+              <div class="ch"><h4>Lift Enable</h4><p>Select disabled or enable based on the presence<br>of lift</p></div>
+              <div class="cb"><div class="optrow" id="liftEnable"></div></div>
+            </div>
+
+            <div class="scard" id="cardSensorDelay" style="left:6cqw; top:56cqh; width:25cqw">
+              <div class="ch"><h4>Sensor Delay</h4><p>Delay after detecting coffee<br>in the intake hopper</p></div>
+              <div class="cb"><div class="drum" data-sec="sensorDelay"></div></div>
+            </div>
+            <div class="scard" id="cardLiftLoad" style="left:38cqw; top:56cqh; width:20cqw">
+              <div class="ch"><h4>Lift Load</h4><p>Lift load cycle time</p></div>
+              <div class="cb"><div class="drum" data-sec="liftLoad"></div></div>
+            </div>
+            <div class="scard" id="cardLiftUnload" style="left:59cqw; top:56cqh; width:20cqw">
+              <div class="ch"><h4>Lift Unload</h4><p>Lift unload cycle time</p></div>
+              <div class="cb"><div class="drum" data-sec="liftUnload"></div></div>
+            </div>
+          </section>
+
+          <!-- ---------- configuration (pressure + VFD) ---------- -->
+          <section class="screen" data-screen="config">
+            <button class="plink l" data-go="blender">&lt; Configuration Settings</button>
+
+            <div class="scard" style="left:2cqw; top:13cqh; width:38cqw">
+              <div class="ch"><h4>Pressure Setting</h4><p>Set the pressure parameters</p></div>
+              <div class="cb">
+                <div class="prow"><span class="pl">Current Pressure</span><span class="pf ro" id="pfCur">+1.2</span><span class="pu">KPa</span></div>
+                <div class="prow"><span class="pl">Target Pressure</span><button class="pf" data-num="targetPressure" id="pfTarget">-5.0</button><span class="pu">KPa</span></div>
+              </div>
+            </div>
+            <div class="scard" style="left:41cqw; top:13cqh; width:38cqw">
+              <div class="ch"><h4>Blend VFD Setting</h4><p>Set the blending motor speed parameters<br>through the VFD frequency</p></div>
+              <div class="cb">
+                <div class="prow"><span class="pl">Blending Speed</span><button class="pf" data-num="blendHz" id="pfBlendHz">40</button><span class="pu">Hz</span></div>
+                <div class="prow"><span class="pl">Auto Low Speed</span><button class="pf" data-num="lowHz" id="pfLowHz">20</button><span class="pu">Hz</span></div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- ---------- panel keypad ---------- -->
+        <div class="kbd-icons" id="kbdIcons">
+          <svg viewBox="0 0 24 24"><path d="M4 6h12v10H4zM8 4h12v10h-2V6H8z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M2 6h20v10H2zm2 2v2h2V8zm4 0v2h2V8zm4 0v2h2V8zm4 0v2h2V8zM4 12v2h2v-2zm4 0v2h8v-2zm10 0v2h2v-2zM10 18h4l-2 3z"/></svg>
+        </div>
+        <div class="kbd" id="kbd">
+          <button class="dim">a</button><button class="dim">d</button><button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button><button data-k="bs">&#x232B;</button>
+          <button class="dim">b</button><button class="dim">e</button><button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button><button data-k="info">&#x24D8;</button>
+          <button class="dim">c</button><button class="dim">f</button><button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button><button data-k="enter">&#x21B5;</button>
+          <button class="dim">&#x21E7;</button><button data-k="neg">+/-</button><button data-k="0">0</button><button data-k=".">.</button><button data-k="prev">&lt;</button><button data-k="next">&gt;</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= instructor rig ================= -->
+  <aside class="rig">
+
+    <div class="card keep">
+      <h3>Machine</h3>
+      <svg id="schem" viewBox="0 0 352 176" role="img" aria-label="Blend schematic from above: intake hopper, vacuum hose into the rim of the round blending pan, chutes for door 1 left, door 2 back and door 3 right, HMI on the front">
+        <!-- intake hopper (side view) with the Y-valve at the cone -->
+        <path class="steel" d="M12 34 h58 v34 l-19 26 h-20 l-19 -26 z"/>
+        <clipPath id="hopClip"><path d="M13 35 h56 v33 l-18.5 25 h-19 l-18.5 -25 z"/></clipPath>
+        <rect id="hopFill" class="coffee" x="13" y="93" width="56" height="0" clip-path="url(#hopClip)"/>
+        <path class="steel" d="M31 94 h20 v8 h-20 z"/>
+        <rect id="sensorDot" class="sensor" x="2" y="72" width="7" height="7" rx="2"/>
+        <text x="41" y="26" text-anchor="middle">Intake hopper</text>
+        <text x="4" y="88" font-size="6.5">sensor</text>
+        <text x="2" y="112" font-size="6.5">Y-valve</text>
+        <!-- flexible suction hose: Y-valve → rim of the pan -->
+        <path class="pipe" d="M41 102 C41 134 108 138 124 108 C132 92 150 74 170 66"/>
+        <path class="hose" d="M41 102 C41 134 108 138 124 108 C132 92 150 74 170 66"/>
+        <path id="pipeBeans" class="beans-pipe" d="M41 102 C41 134 108 138 124 108 C132 92 150 74 170 66"/>
+        <text x="86" y="156" text-anchor="middle" id="liftLabel">Vacuum hose</text>
+        <!-- blending pan, seen from above. Front of the machine (HMI) is at the bottom. -->
+        <circle class="steel" cx="205" cy="96" r="46"/>
+        <circle id="rim" class="rim" cx="205" cy="96" r="42.5"/>
+        <circle cx="205" cy="96" r="38" fill="#1c1d22" stroke="#3d404a"/>
+        <circle id="ring" class="ring" cx="205" cy="96" r="26"/>
+        <g id="beans">
+          <ellipse class="bean" cx="205" cy="66" rx="3" ry="2"/>
+          <ellipse class="bean" cx="226" cy="75" rx="3" ry="2" transform="rotate(45 226 75)"/>
+          <ellipse class="bean" cx="235" cy="96" rx="2" ry="3"/>
+          <ellipse class="bean" cx="226" cy="117" rx="3" ry="2" transform="rotate(-45 226 117)"/>
+          <ellipse class="bean" cx="205" cy="126" rx="3" ry="2"/>
+          <ellipse class="bean" cx="184" cy="117" rx="3" ry="2" transform="rotate(45 184 117)"/>
+          <ellipse class="bean" cx="175" cy="96" rx="2" ry="3"/>
+          <ellipse class="bean" cx="184" cy="75" rx="3" ry="2" transform="rotate(-45 184 75)"/>
+          <ellipse class="bean" cx="214" cy="76" rx="2.4" ry="1.6" transform="rotate(20 214 76)"/>
+          <ellipse class="bean" cx="224" cy="104" rx="2.4" ry="1.6" transform="rotate(70 224 104)"/>
+          <ellipse class="bean" cx="200" cy="117" rx="2.4" ry="1.6" transform="rotate(-10 200 117)"/>
+          <ellipse class="bean" cx="184" cy="99" rx="2.4" ry="1.6" transform="rotate(80 184 99)"/>
+          <ellipse class="bean" cx="193" cy="78" rx="2.4" ry="1.6" transform="rotate(-50 193 78)"/>
+        </g>
+        <!-- windmill arms on a central hub -->
+        <g id="arms">
+          <g class="arm"><line x1="205" y1="96" x2="205" y2="64"/><rect x="200" y="60" width="10" height="14" rx="1.5"/></g>
+          <g class="arm" transform="rotate(90 205 96)"><line x1="205" y1="96" x2="205" y2="64"/><rect x="200" y="60" width="10" height="14" rx="1.5"/></g>
+          <g class="arm" transform="rotate(180 205 96)"><line x1="205" y1="96" x2="205" y2="64"/><rect x="200" y="60" width="10" height="14" rx="1.5"/></g>
+          <g class="arm" transform="rotate(270 205 96)"><line x1="205" y1="96" x2="205" y2="64"/><rect x="200" y="60" width="10" height="14" rx="1.5"/></g>
+          <circle cx="205" cy="96" r="5" fill="#8d93a3"/>
+        </g>
+        <!-- hose inlet stub on the rim -->
+        <path class="steel" d="M166 60 l10 -4 l6 10 l-10 4 z"/>
+        <!-- three unload chutes under the pan: 1 left, 2 back, 3 right (facing the screen) -->
+        <path id="door0" class="door" d="M160 86 L146 82 L146 110 L160 106 Z"/>
+        <path id="door1" class="door" d="M195 51 L191 37 L219 37 L215 51 Z"/>
+        <path id="door2" class="door" d="M250 86 L264 82 L264 110 L250 106 Z"/>
+        <path id="stream0" class="stream" d="M144 96 H128 V134"/>
+        <path id="stream1" class="stream" d="M205 36 V22 H236"/>
+        <path id="stream2" class="stream" d="M266 96 H282 V134"/>
+        <text x="128" y="142" text-anchor="middle" font-size="7">Door 1</text>
+        <text x="257" y="26" font-size="7">Door 2 · back</text>
+        <text x="282" y="142" text-anchor="middle" font-size="7">Door 3</text>
+        <!-- sloped front panel with the touch screen and e-stop -->
+        <path class="front" d="M186 142 H224 L230 156 H180 Z"/>
+        <rect x="200" y="145" width="18" height="8" rx="1" fill="#2a9b9f"/>
+        <circle cx="191" cy="149" r="2.3" fill="#d03b3b"/>
+        <text x="205" y="165" text-anchor="middle" font-size="6.5">HMI · front</text>
+        <text x="205" y="174" text-anchor="middle" id="hzText">0 Hz</text>
+        <!-- vacuum / pressure gauge -->
+        <text x="318" y="58" text-anchor="middle">Pressure</text>
+        <circle class="steel" cx="318" cy="82" r="15"/>
+        <line id="needle" x1="318" y1="82" x2="318" y2="70" stroke="#fab219" stroke-width="2" stroke-linecap="round" style="transform-box: view-box; transform-origin: 318px 82px"/>
+        <text id="kpaText" x="318" y="108" text-anchor="middle">+1.2 kPa</text>
+        <text id="outText" x="318" y="160" text-anchor="middle">out 0.0 kg</text>
+      </svg>
+      <div class="tiles">
+        <div class="tile" id="tState"><div class="lab">State</div><div class="val">Idle</div><div class="sub">Auto</div></div>
+        <div class="tile" id="tDrum"><div class="lab">In drum</div><div class="val">0.0</div><div class="sub">kg</div></div>
+        <div class="tile" id="tMotor"><div class="lab">Motor</div><div class="val">0</div><div class="sub">Hz</div></div>
+      </div>
+      <div class="warn" id="rigWarn"></div>
+      <div class="examHint">Instructor panel hidden. <b>Shift&nbsp;+&nbsp;I</b> brings it back.</div>
+    </div>
+
+    <div class="card">
+      <h3>Intake hopper</h3>
+      <div class="ctl">
+        <label>
+          <span class="lv">Coffee waiting at the intake <b id="hopV">30.0 kg</b></span>
+          <input type="range" id="hopper" min="0" max="80" step="0.5" value="30">
+        </label>
+        <div class="btn-row">
+          <button class="mini" id="add10">Tip in 10 kg</button>
+          <button class="mini" id="emptyHop">Empty intake</button>
+          <button class="mini" id="emptyDrum">Empty drum</button>
+        </div>
+        <div class="hint" id="hopHint"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Event log</h3>
+      <div class="wrap"><table class="logtable"><tbody id="logBody"></tbody></table></div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="mini" id="clearLog">Clear log</button>
+        <button class="mini" id="csv">Copy log</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Training</h3>
+      <div class="ex" data-task="cycle">
+        <button class="mini wide">Run a full Auto cycle</button>
+        <p>Load &amp; Blend, wait for Blending Complete, then Unload. Watch which door opens and how long
+          the drum takes to empty.</p>
+      </div>
+      <div class="ex" data-task="nolift">
+        <button class="mini wide">Commission a site with no lift and no sensor</button>
+        <p>The roastery feeds the intake by hand. Turn both options off in Blender Settings and check
+          the three timing drums grey out.</p>
+      </div>
+      <div class="ex" data-task="door3">
+        <button class="mini wide">Unload through door 3 by default</button>
+        <p>Change the default unload door to door 3 and run a cycle to prove it. Door 3 must stay
+          enabled or the machine cannot unload.</p>
+      </div>
+      <div class="ex" data-task="gentle">
+        <button class="mini wide">Set up a gentler, longer blend</button>
+        <p>Blending Speed down to 30 Hz in Configuration Settings, Blend Time up to 0:45 on the
+          Settings page. Use the keypad for at least one of them.</p>
+      </div>
+      <div class="ex" data-task="reset">
+        <button class="mini wide">Reset to factory</button>
+        <p>Times 0:29 / 0:32 / 0:10, all doors enabled, door 1 default, sensor and lift on, 40 Hz / 20 Hz.</p>
+      </div>
+      <div class="hint" id="taskHint" style="margin-top:10px"></div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="mini" id="examBtn">Hide this panel</button>
+      </div>
+      <details class="task"><summary>Keyboard &amp; notes</summary>
+        <p><b>Space</b> Load &amp; Blend / Unload &middot; <b>Esc</b> Cancel &middot; <b>H</b> home &middot;
+        <b>M</b> Manual/Auto &middot; <b>Shift&nbsp;+&nbsp;I</b> instructor panel.</p>
+        <ul>
+          <li>Tap the faded value above or below a drum to step it. Tap the centre value for the panel keypad.</li>
+          <li>Page order Settings &rarr; Blender Settings &rarr; Configuration Settings follows the link labels
+            on the photographed screens; confirm against a live panel.</li>
+          <li>Hopper sizes, transfer rates and pressure behaviour are illustrative only, not machine specs.</li>
+        </ul>
+      </details>
+    </div>
+
+  </aside>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------------- state ---------------- */
+
+const FACTORY = () => ({
+  loadTime: 29, blendTime: 32, unloadTime: 10,
+  doorsEnabled: [true, true, true], defaultDoor: 0,
+  sensorEnabled: true, liftEnabled: true,
+  sensorDelay: 13, liftLoad: 2, liftUnload: 2,
+  targetPressure: -5.0, blendHz: 40, lowHz: 20,
+});
+
+const S = {
+  cfg: FACTORY(),
+  mode: 'auto',                       // 'auto' | 'manual'
+  phase: 'idle',                      // idle | loading | blending | complete | unloading
+  t: 0,                               // seconds elapsed in the current phase
+  detect: 0,                          // seconds coffee has been seen at the sensor (sensor delay)
+  man: { blend: false, load: false, doors: [false, false, false] },
+  plant: { hopper: 30, drum: 0, out: 0, hz: 0, kpa: 1.2, lift: 0, liftDir: 1, doors: [false, false, false] },
+  screen: 'home',
+  edit: null,                         // { key, part, buf }
+  clock: 0,
+  task: null, taskDone: {}, cycles: 0,
+};
+const DRUM_MAX = 60;
+
+/* ---------------- helpers ---------------- */
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const mmss = s => `${Math.floor(s / 60)} : ${s % 60}`;
+const fmtT = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+
+const logBody = $('#logBody');
+function log(msg, cls = '') {
+  const tr = document.createElement('tr');
+  if (cls) tr.className = cls;
+  tr.innerHTML = `<td>${fmtT(Math.floor(S.clock))}</td><td>${msg}</td>`;
+  logBody.prepend(tr);
+  while (logBody.children.length > 120) logBody.lastChild.remove();
+}
+
+/* ---------------- navigation ---------------- */
+
+function go(screen) {
+  S.screen = screen;
+  closeKeypad();
+  $$('.screen').forEach(el => el.classList.toggle('on', el.dataset.screen === screen));
+  $('#navHome').classList.toggle('active', screen === 'home');
+  $('#navSettings').classList.toggle('active', screen !== 'home');
+  render();
+}
+$$('[data-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.go)));
+
+/* ---------------- mode & auto cycle ---------------- */
+
+function setMode(m) {
+  if (S.mode === m) return;
+  if (S.mode === 'auto' && S.phase !== 'idle') cancelCycle('mode changed to Manual');
+  if (m === 'auto') {
+    // leaving Manual: everything the operator switched on stops
+    S.man.blend = false; S.man.load = false; S.man.doors = [false, false, false];
+  }
+  S.mode = m;
+  log(`Mode: ${m.toUpperCase()}`);
+  render();
+}
+$$('.modes button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+
+function enabledDoors() { return S.cfg.doorsEnabled.map((e, i) => e ? i : -1).filter(i => i >= 0); }
+function unloadDoor() {
+  if (S.cfg.doorsEnabled[S.cfg.defaultDoor]) return S.cfg.defaultDoor;
+  const e = enabledDoors();
+  return e.length ? e[0] : -1;
+}
+
+function startCycle() {
+  S.phase = 'loading'; S.t = 0; S.detect = 0;
+  log('Load & Blend pressed — Blender Loading', 'hi');
+}
+function cancelCycle(why) {
+  const was = S.phase;
+  S.phase = 'idle'; S.t = 0;
+  log(`Cancel (${why || was})`, 'bad');
+}
+function startUnload() {
+  const d = unloadDoor();
+  if (d < 0) { log('Unload refused: no unload door is enabled', 'bad'); return; }
+  S.phase = 'unloading'; S.t = 0;
+  log(`Unload — door ${d + 1} opening`, 'hi');
+}
+
+$('#acts').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const a = b.dataset.act;
+  if (a === 'loadblend') startCycle();
+  else if (a === 'cancel') cancelCycle('operator');
+  else if (a === 'more') { S.phase = 'loading'; S.t = 0; S.detect = 0; log('Load more coffee — back to Blender Loading', 'hi'); }
+  else if (a === 'unload') startUnload();
+  render();
+});
+
+/* ---------------- manual toggles ---------------- */
+
+$('#manStage').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.man) {
+    const k = b.dataset.man;
+    S.man[k] = !S.man[k];
+    log(`Manual: ${k === 'blend' ? 'Blend' : 'Load'} ${S.man[k] ? 'ON' : 'OFF'}`);
+  } else if (b.dataset.door != null) {
+    const i = +b.dataset.door;
+    if (!S.cfg.doorsEnabled[i]) return;
+    S.man.doors[i] = !S.man.doors[i];
+    log(`Manual: Door ${i + 1} ${S.man.doors[i] ? 'OPEN' : 'CLOSED'}`);
+  }
+  render();
+});
+
+/* ---------------- settings widgets ---------------- */
+
+const SEC_RANGE = { sensorDelay: [0, 60], liftLoad: [1, 20], liftUnload: [1, 20] };
+const NUM_RANGE = { targetPressure: [-20, 0], blendHz: [0, 60], lowHz: [0, 60] };
+
+function step(key, d) {
+  const c = S.cfg;
+  if (key in SEC_RANGE) { c[key] = clamp(c[key] + d, ...SEC_RANGE[key]); }
+  else { c[key] = clamp(c[key] + d, 0, 599); }
+  log(`${label(key)} → ${key in SEC_RANGE ? c[key] + ' sec' : fmtT(c[key])}`);
+  render();
+}
+function label(k) {
+  return { loadTime: 'Load Time', blendTime: 'Blend Time', unloadTime: 'Unload Time', sensorDelay: 'Sensor Delay',
+    liftLoad: 'Lift Load', liftUnload: 'Lift Unload', targetPressure: 'Target Pressure', blendHz: 'Blending Speed',
+    lowHz: 'Auto Low Speed' }[k] || k;
+}
+
+// time drums: rows show prev / current / next as m : ss
+function renderTimeDrum(el) {
+  const key = el.dataset.time, v = S.cfg[key];
+  const row = (val, cls) => {
+    const m = Math.floor(val / 60), s = val % 60;
+    const ed = S.edit && S.edit.key === key;
+    const mm = cls === 'c' && ed && S.edit.part === 'min' ? `<span class="tap edit" data-part="min">${S.edit.buf || m}</span>` : `<span class="tap" data-part="min">${m}</span>`;
+    const ss = cls === 'c' && ed && S.edit.part === 'sec' ? `<span class="tap edit" data-part="sec">${S.edit.buf || s}</span>` : `<span class="tap" data-part="sec">${s}</span>`;
+    return `<button class="r ${cls}" data-d="${cls === 'u' ? -1 : cls === 'd' ? 1 : 0}">${mm}<span class="colon">:</span>${ss}</button>`;
+  };
+  el.innerHTML = row(Math.max(0, v - 1), 'u') + row(v, 'c') + row(v + 1, 'd');
+}
+function renderSecDrum(el) {
+  const key = el.dataset.sec, v = S.cfg[key], [lo, hi] = SEC_RANGE[key];
+  const ed = S.edit && S.edit.key === key;
+  const row = (val, cls) => `<button class="r ${cls}" data-d="${cls === 'u' ? -1 : cls === 'd' ? 1 : 0}">` +
+    (cls === 'c' ? `<span class="tap ${ed ? 'edit' : ''}" data-part="sec">${ed ? (S.edit.buf || val) : val}</span>` : `<span>${val}</span>`) +
+    `<span class="unit">sec.</span></button>`;
+  el.innerHTML = row(Math.max(lo, v - 1), 'u') + row(v, 'c') + row(Math.min(hi, v + 1), 'd');
+}
+
+$$('.drum').forEach(el => el.addEventListener('click', e => {
+  const r = e.target.closest('.r'); if (!r) return;
+  const key = el.dataset.time || el.dataset.sec;
+  const d = +r.dataset.d;
+  if (d) { step(key, d); return; }
+  const part = e.target.closest('[data-part]');
+  openKeypad(key, part ? part.dataset.part : 'sec');
+}));
+
+// radios / checks
+function optButton(kind, on, text, data, small) {
+  return `<button class="opt" ${data}><span class="ol ${small ? 'sm' : ''}">${text}</span><span class="${kind} ${on ? 'on' : ''}"></span></button>`;
+}
+function renderOptions() {
+  const c = S.cfg;
+  $('#doorEnable').innerHTML = [0, 1, 2].map(i => optButton('chk', c.doorsEnabled[i], `door ${i + 1}`, `data-en="${i}"`, true)).join('');
+  $('#doorDefault').innerHTML = [0, 1, 2].map(i => optButton('radio', c.defaultDoor === i, `door ${i + 1}`, `data-def="${i}"`, true)).join('');
+  $('#sensorEnable').innerHTML = optButton('radio', !c.sensorEnabled, 'Disabled', 'data-sensor="0"') + optButton('radio', c.sensorEnabled, 'Enable', 'data-sensor="1"');
+  $('#liftEnable').innerHTML = optButton('radio', !c.liftEnabled, 'Disabled', 'data-lift="0"') + optButton('radio', c.liftEnabled, 'Enable', 'data-lift="1"');
+  $('#cardSensorDelay').classList.toggle('dim', !c.sensorEnabled);
+  $('#cardLiftLoad').classList.toggle('dim', !c.liftEnabled);
+  $('#cardLiftUnload').classList.toggle('dim', !c.liftEnabled);
+}
+$('.main').addEventListener('click', e => {
+  const b = e.target.closest('.opt'); if (!b) return;
+  const c = S.cfg, d = b.dataset;
+  if (d.en != null) { const i = +d.en; c.doorsEnabled[i] = !c.doorsEnabled[i]; log(`Door ${i + 1} ${c.doorsEnabled[i] ? 'enabled' : 'disabled'}`); }
+  else if (d.def != null) { c.defaultDoor = +d.def; log(`Default unload door → door ${c.defaultDoor + 1}`); }
+  else if (d.sensor != null) { c.sensorEnabled = d.sensor === '1'; log(`Sensor ${c.sensorEnabled ? 'enabled' : 'disabled'}`); }
+  else if (d.lift != null) { c.liftEnabled = d.lift === '1'; log(`Lift ${c.liftEnabled ? 'enabled' : 'disabled'}`); }
+  render();
+});
+
+// numeric fields on the configuration page
+$$('.pf[data-num]').forEach(b => b.addEventListener('click', () => openKeypad(b.dataset.num, 'num')));
+
+/* ---------------- keypad ---------------- */
+
+const kbd = $('#kbd'), kbdIcons = $('#kbdIcons');
+function openKeypad(key, part) {
+  S.edit = { key, part, buf: '' };
+  kbd.classList.add('on'); kbdIcons.classList.add('on');
+  render();
+}
+function closeKeypad() {
+  S.edit = null;
+  kbd.classList.remove('on'); kbdIcons.classList.remove('on');
+}
+function commitKeypad() {
+  if (!S.edit) return;
+  const { key, part, buf } = S.edit;
+  if (buf !== '' && buf !== '-' && buf !== '.') {
+    const c = S.cfg, n = parseFloat(buf);
+    if (part === 'num') {
+      const [lo, hi] = NUM_RANGE[key];
+      c[key] = key === 'targetPressure' ? Math.round(clamp(n, lo, hi) * 10) / 10 : Math.round(clamp(n, lo, hi));
+      log(`${label(key)} → ${key === 'targetPressure' ? c[key].toFixed(1) + ' KPa' : c[key] + ' Hz'}`);
+    } else if (key in SEC_RANGE) {
+      c[key] = Math.round(clamp(n, ...SEC_RANGE[key]));
+      log(`${label(key)} → ${c[key]} sec`);
+    } else {
+      const m = Math.floor(c[key] / 60), s = c[key] % 60;
+      const v = part === 'min' ? clamp(Math.round(n), 0, 9) * 60 + s : m * 60 + clamp(Math.round(n), 0, 59);
+      c[key] = v;
+      log(`${label(key)} → ${fmtT(c[key])}`);
+    }
+  }
+  closeKeypad(); render();
+}
+const ORDER = ['loadTime', 'blendTime', 'unloadTime'];
+kbd.addEventListener('click', e => {
+  const b = e.target.closest('button[data-k]'); if (!b || !S.edit) return;
+  const k = b.dataset.k;
+  if (k === 'enter') return commitKeypad();
+  if (k === 'bs') S.edit.buf = S.edit.buf.slice(0, -1);
+  else if (k === 'neg') S.edit.buf = S.edit.buf.startsWith('-') ? S.edit.buf.slice(1) : '-' + S.edit.buf;
+  else if (k === '.') { if (!S.edit.buf.includes('.')) S.edit.buf += S.edit.buf === '' ? '0.' : '.'; }
+  else if (k === 'prev' || k === 'next') {
+    // move the cursor between the time drums the way < > does on the panel
+    const { key, part } = S.edit; commitKeypad();
+    const i = ORDER.indexOf(key);
+    if (i >= 0) {
+      const seq = ORDER.flatMap(kk => [[kk, 'min'], [kk, 'sec']]);
+      let j = seq.findIndex(([kk, p]) => kk === key && p === part) + (k === 'next' ? 1 : -1);
+      j = (j + seq.length) % seq.length;
+      openKeypad(...seq[j]);
+    }
+    return;
+  }
+  else if (k === 'info') return;
+  else if (S.edit.buf.replace('-', '').length < 4) S.edit.buf += k;
+  render();
+});
+
+/* ---------------- simulation ---------------- */
+
+function intakeRunning() {
+  if (S.mode === 'manual') return S.man.load;
+  if (S.phase !== 'loading') return false;
+  if (!S.cfg.sensorEnabled) return true;
+  return S.plant.hopper > 0.2 && S.detect >= S.cfg.sensorDelay;
+}
+function motorTarget() {
+  const c = S.cfg;
+  if (S.mode === 'manual') return S.man.blend ? c.blendHz : 0;
+  if (S.phase === 'blending') return c.blendHz;
+  if (S.phase === 'loading' || S.phase === 'unloading') return c.lowHz;
+  return 0;
+}
+
+function tick(dt) {
+  const p = S.plant, c = S.cfg;
+  S.clock += dt;
+  const phaseBefore = S.phase;
+
+  // auto sequencing
+  if (S.mode === 'auto') {
+    if (S.phase === 'loading') {
+      if (c.sensorEnabled) {
+        if (p.hopper > 0.2) S.detect += dt; else S.detect = 0;
+        if (S.detect >= c.sensorDelay) S.t += dt;
+      } else S.t += dt;
+      if (S.t >= c.loadTime) { S.phase = 'blending'; S.t = 0; log('Loading complete — Blending...', 'hi'); }
+    } else if (S.phase === 'blending') {
+      S.t += dt;
+      if (S.t >= c.blendTime) { S.phase = 'complete'; S.t = 0; log('Blending Complete', 'hi'); }
+    } else if (S.phase === 'unloading') {
+      S.t += dt;
+      if (S.t >= c.unloadTime) {
+        S.phase = 'idle'; S.t = 0; S.cycles++;
+        log(`Unload finished — door closed, ${p.drum.toFixed(1)} kg left in drum`, p.drum > 0.5 ? 'bad' : 'hi');
+      }
+    }
+  }
+
+  // doors
+  const auto = S.mode === 'auto';
+  const ud = unloadDoor();
+  for (let i = 0; i < 3; i++) {
+    p.doors[i] = c.doorsEnabled[i] && (auto ? (S.phase === 'unloading' && i === ud) : S.man.doors[i]);
+  }
+
+  // motor ramps toward the VFD setpoint
+  const target = motorTarget();
+  const ramp = 18 * dt;
+  p.hz = Math.abs(target - p.hz) <= ramp ? target : p.hz + Math.sign(target - p.hz) * ramp;
+
+  // intake transfer: lift tips coffee into the drum in load/unload cycles; no lift = steady feed
+  const intake = intakeRunning();
+  if (intake && p.hopper > 0 && p.drum < DRUM_MAX) {
+    let rate = 1.0;
+    if (c.liftEnabled) {
+      const period = c.liftLoad + c.liftUnload;
+      p.lift = (p.lift + dt / period) % 1;
+      rate = p.lift * period < c.liftLoad ? 0.3 : 2.2;   // slow while the lift climbs, fast while it tips
+    } else p.lift = 0;
+    const moved = Math.min(p.hopper, DRUM_MAX - p.drum, rate * dt);
+    p.hopper -= moved; p.drum += moved;
+  } else if (!intake) p.lift = 0;
+
+  // doors open: coffee leaves the drum, quickly if it is turning
+  const open = p.doors.some(Boolean);
+  if (open && p.drum > 0) {
+    const out = Math.min(p.drum, (p.hz > 1 ? 1.4 + p.hz / 20 : 0.25) * dt);
+    p.drum -= out; p.out += out;
+  }
+
+  // pressure: the intake pulls toward the target while conveying, otherwise drifts back to ambient
+  const kTarget = intake ? c.targetPressure : 1.2;
+  p.kpa += (kTarget - p.kpa) * Math.min(1, dt * 1.6) + (Math.random() - 0.5) * 0.04;
+
+  if (S.phase !== phaseBefore) S.dirty = true;
+  checkTask();
+}
+
+/* ---------------- render ---------------- */
+
+function render() {
+  const c = S.cfg, p = S.plant;
+
+  // mode switch + home
+  $('#mManual').classList.toggle('on', S.mode === 'manual');
+  $('#mAuto').classList.toggle('on', S.mode === 'auto');
+  $('#autoStage').hidden = S.mode !== 'auto';
+  $('#manStage').hidden = S.mode !== 'manual';
+
+  const big = $('#bigText'), tm = $('#timerText'), acts = $('#acts');
+  const btn = (act, txt) => `<button class="hbtn" data-act="${act}">${txt}</button>`;
+  const ts = Math.floor(S.t);
+  if (S.phase === 'idle') {
+    big.hidden = true; tm.hidden = true; acts.className = 'acts idle one'; acts.innerHTML = btn('loadblend', 'Load &amp; Blend');
+  } else if (S.phase === 'loading') {
+    big.hidden = false; big.textContent = 'Blender Loading'; big.className = 'big sm';
+    tm.hidden = false; tm.textContent = mmss(ts); acts.className = 'acts one'; acts.innerHTML = btn('cancel', 'Cancel');
+  } else if (S.phase === 'blending') {
+    big.hidden = false; big.textContent = 'Blending...'; big.className = 'big';
+    tm.hidden = false; tm.textContent = mmss(ts); acts.className = 'acts'; acts.innerHTML = btn('more', 'Load more coffee') + btn('cancel', 'Cancel');
+  } else if (S.phase === 'complete') {
+    big.hidden = false; big.textContent = 'Blending Complete'; big.className = 'big sm';
+    tm.hidden = true; acts.className = 'acts'; acts.innerHTML = btn('unload', 'Unload') + btn('cancel', 'Cancel');
+  } else if (S.phase === 'unloading') {
+    big.hidden = false; big.textContent = 'Unloading...'; big.className = 'big';
+    tm.hidden = false; tm.textContent = mmss(ts); acts.className = 'acts one'; acts.innerHTML = btn('cancel', 'Cancel');
+  }
+
+  // manual toggles
+  $$('#manStage .tg[data-man]').forEach(b => {
+    const on = S.man[b.dataset.man]; const [off, onEl] = b.children;
+    off.classList.toggle('on', !on); onEl.classList.toggle('on', on);
+  });
+  $$('#manStage .tg[data-door]').forEach(b => {
+    const i = +b.dataset.door, open = S.man.doors[i]; const [o, cl] = b.children;
+    o.classList.toggle('on', open); cl.classList.toggle('on', !open);
+    b.classList.toggle('dim', !c.doorsEnabled[i]);
+  });
+
+  // settings pages
+  $$('.drum[data-time]').forEach(renderTimeDrum);
+  $$('.drum[data-sec]').forEach(renderSecDrum);
+  renderOptions();
+  const ed = k => S.edit && S.edit.key === k ? `<span class="edit">${S.edit.buf || '&nbsp;'}</span>` : null;
+  $('#pfCur').textContent = (p.kpa >= 0 ? '+' : '') + p.kpa.toFixed(1);
+  $('#pfTarget').innerHTML = ed('targetPressure') || c.targetPressure.toFixed(1);
+  $('#pfBlendHz').innerHTML = ed('blendHz') || c.blendHz;
+  $('#pfLowHz').innerHTML = ed('lowHz') || c.lowHz;
+
+  renderRig();
+}
+
+function renderDynamic() {
+  const p = S.plant;
+  if (S.phase !== 'idle' && S.phase !== 'complete') $('#timerText').textContent = mmss(Math.floor(S.t));
+  $('#pfCur').textContent = (p.kpa >= 0 ? '+' : '') + p.kpa.toFixed(1);
+  renderRig();
+}
+
+const phaseName = { idle: 'Idle', loading: 'Loading', blending: 'Blending', complete: 'Complete', unloading: 'Unloading' };
+function renderRig() {
+  const c = S.cfg, p = S.plant;
+
+  // schematic
+  const hopH = 58 * clamp(p.hopper / 80, 0, 1);
+  const hf = $('#hopFill'); hf.setAttribute('y', 93 - hopH); hf.setAttribute('height', hopH);
+  const sensor = $('#sensorDot');
+  sensor.classList.toggle('off', !c.sensorEnabled);
+  sensor.classList.toggle('hot', c.sensorEnabled && p.hopper > 0.2);
+  $('#liftLabel').textContent = c.liftEnabled ? 'Vacuum hose · Lift on' : 'Vacuum hose · no Lift';
+  // beans in the pipe only while the intake is pulling; with the lift enabled the flow pulses with its cycle
+  const live = intakeRunning();
+  const period = c.liftLoad + c.liftUnload;
+  const tipping = !c.liftEnabled || (p.lift * period) >= c.liftLoad;
+  const pb = $('#pipeBeans'); pb.classList.toggle('live', live); pb.style.opacity = live ? (tipping ? 1 : .35) : 0;
+  // chamber: coffee ring thickens with the load; beans orbit while the drum turns
+  const fill = clamp(p.drum / DRUM_MAX, 0, 1);
+  $('#ring').style.strokeWidth = fill > 0.01 ? (3 + 20 * fill).toFixed(1) : 0;
+  const beans = $('#beans');
+  beans.classList.toggle('turning', p.hz > 0.5 && p.drum > 0.3);
+  beans.style.animation = p.hz > 0.5 ? `spin ${(90 / p.hz).toFixed(2)}s linear infinite` : 'none';
+  $('#arms').style.animation = p.hz > 0.5 ? `spin ${(90 / p.hz).toFixed(2)}s linear infinite` : 'none';
+  $('#hzText').textContent = `${Math.round(p.hz)} Hz`;
+  $('#needle').style.transform = `rotate(${clamp(p.kpa, -20, 5) * 6}deg)`;
+  $('#kpaText').textContent = `${p.kpa >= 0 ? '+' : ''}${p.kpa.toFixed(1)} kPa`;
+  for (let i = 0; i < 3; i++) {
+    const d = $('#door' + i); d.classList.toggle('open', p.doors[i]); d.classList.toggle('off', !c.doorsEnabled[i]);
+    $('#stream' + i).classList.toggle('live', p.doors[i] && p.drum > 0.3);
+  }
+  $('#outText').textContent = `out ${p.out.toFixed(1)} kg`;
+
+  // tiles
+  const st = $('#tState'); st.querySelector('.val').textContent = S.mode === 'manual' ? 'Manual' : phaseName[S.phase];
+  st.querySelector('.sub').textContent = S.mode === 'manual'
+    ? [S.man.blend && 'blend', S.man.load && 'load', ...S.man.doors.map((o, i) => o && `D${i + 1}`)].filter(Boolean).join(' · ') || 'all off'
+    : (S.phase === 'idle' ? 'Auto' : `${fmtT(Math.floor(S.t))} of ${fmtT(S.phase === 'loading' ? c.loadTime : S.phase === 'blending' ? c.blendTime : S.phase === 'unloading' ? c.unloadTime : 0)}`);
+  $('#tDrum .val').textContent = p.drum.toFixed(1);
+  $('#tMotor .val').textContent = Math.round(p.hz);
+  $('#tMotor').className = 'tile ' + (p.hz > 0.5 ? 'ok' : '');
+  $('#hopV').textContent = p.hopper.toFixed(1) + ' kg';
+  $('#hopper').value = p.hopper;
+  $('#bezelState').textContent = S.mode === 'manual' ? 'Manual · operator control' : (S.phase === 'idle' ? 'Smart Line Plus HMI · emulator' : `Auto · ${phaseName[S.phase]} ${mmss(Math.floor(S.t)).replace(/ /g, '')}`);
+
+  // warnings
+  const w = [];
+  if (S.mode === 'auto' && S.phase === 'loading' && c.sensorEnabled && p.hopper <= 0.2)
+    w.push('Loading is waiting: the intake sensor sees no coffee, so the load timer is paused.');
+  if (S.mode === 'auto' && S.phase === 'loading' && c.sensorEnabled && p.hopper > 0.2 && S.detect < c.sensorDelay)
+    w.push(`Sensor delay: ${Math.ceil(c.sensorDelay - S.detect)} s before the load timer starts.`);
+  if (S.mode === 'auto' && S.phase === 'loading' && !c.sensorEnabled && p.hopper <= 0.2)
+    w.push('Sensor disabled and the intake is empty: the timer runs but nothing is going into the drum.');
+  if (!enabledDoors().length) w.push('No unload door is enabled. Unload will be refused.');
+  else if (!c.doorsEnabled[c.defaultDoor]) w.push(`Default door ${c.defaultDoor + 1} is disabled; the machine will unload through door ${unloadDoor() + 1} instead.`);
+  if (S.mode === 'manual' && p.doors.some(Boolean) && p.hz < 1 && p.drum > 0.5) w.push('A door is open with the drum stopped: coffee only trickles out. Switch Blend ON to empty it.');
+  if (p.drum >= DRUM_MAX - 0.01) w.push('Drum is full.');
+  if (c.lowHz > c.blendHz) w.push('Auto Low Speed is above Blending Speed. Loading and unloading will run faster than the blend.');
+  $('#rigWarn').innerHTML = w.join('<br>');
+  $('#hopHint').textContent = p.hopper <= 0.2 ? 'Intake is empty.' : `${c.sensorEnabled ? 'Sensor sees coffee.' : 'Sensor disabled.'} ${c.liftEnabled ? `Lift cycles ${c.liftLoad}s up / ${c.liftUnload}s tip.` : 'No lift: steady feed.'}`;
+}
+
+/* ---------------- rig controls ---------------- */
+
+$('#hopper').addEventListener('input', e => { S.plant.hopper = +e.target.value; render(); });
+$('#add10').addEventListener('click', () => { S.plant.hopper = clamp(S.plant.hopper + 10, 0, 80); log('Tipped 10 kg into the intake'); render(); });
+$('#emptyHop').addEventListener('click', () => { S.plant.hopper = 0; log('Intake emptied'); render(); });
+$('#emptyDrum').addEventListener('click', () => { S.plant.drum = 0; log('Drum emptied by hand'); render(); });
+$('#clearLog').addEventListener('click', () => { logBody.innerHTML = ''; });
+$('#csv').addEventListener('click', () => {
+  const rows = $$('#logBody tr').reverse().map(tr => [...tr.children].map(td => td.textContent).join('\t')).join('\n');
+  navigator.clipboard && navigator.clipboard.writeText(rows).then(() => log('Log copied to clipboard'));
+});
+
+/* ---------------- training ---------------- */
+
+const TASKS = {
+  cycle:  { hint: 'Press Load & Blend on the Home screen in AUTO. Wait for Blending Complete, then Unload.',
+            check: () => S.cycles > (S.task && S.task.base || 0) },
+  nolift: { hint: 'Settings → Configuration Settings → set Sensor Enable and Lift Enable to Disabled.',
+            check: () => !S.cfg.sensorEnabled && !S.cfg.liftEnabled },
+  door3:  { hint: 'Settings → Default Unload Doors → door 3. Then run a cycle: door 3 should open on Unload.',
+            check: () => S.cfg.defaultDoor === 2 && S.cfg.doorsEnabled[2] && S.cycles > (S.task && S.task.base || 0) },
+  gentle: { hint: 'Configuration Settings → Blending Speed 30 Hz. Settings → Blend Time 0:45.',
+            check: () => S.cfg.blendHz === 30 && S.cfg.blendTime === 45 },
+  reset:  { hint: '', check: () => false },
+};
+$$('.ex').forEach(ex => ex.querySelector('button').addEventListener('click', () => {
+  const id = ex.dataset.task;
+  if (id === 'reset') { factoryReset(); return; }
+  S.task = { id, base: S.cycles }; S.taskDone[id] = false;
+  $$('.ex').forEach(x => x.classList.remove('done'));
+  $('#taskHint').className = 'hint'; $('#taskHint').textContent = TASKS[id].hint;
+  log(`Training: ${ex.querySelector('button').textContent}`, 'hi');
+}));
+function checkTask() {
+  if (!S.task || S.taskDone[S.task.id]) return;
+  if (TASKS[S.task.id].check()) {
+    S.taskDone[S.task.id] = true;
+    $(`.ex[data-task="${S.task.id}"]`).classList.add('done');
+    $('#taskHint').className = 'hint good'; $('#taskHint').textContent = 'Done. Pick another exercise or reset to factory.';
+    log('Training exercise complete', 'hi');
+  }
+}
+function factoryReset() {
+  S.cfg = FACTORY(); S.mode = 'auto'; S.phase = 'idle'; S.t = 0; S.detect = 0;
+  S.man = { blend: false, load: false, doors: [false, false, false] };
+  S.plant = { hopper: 30, drum: 0, out: 0, hz: 0, kpa: 1.2, lift: 0, liftDir: 1, doors: [false, false, false] };
+  S.task = null; $$('.ex').forEach(x => x.classList.remove('done'));
+  $('#taskHint').className = 'hint'; $('#taskHint').textContent = '';
+  go('home'); log('Reset to factory settings', 'hi'); render();
+}
+
+/* ---------------- exam mode & keys ---------------- */
+
+const app = $('#app');
+$('#examBtn').addEventListener('click', () => app.classList.add('exam'));
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input, textarea')) return;
+  if (e.key === 'I' && e.shiftKey) { app.classList.toggle('exam'); return; }
+  if (S.edit) {
+    if (/^[0-9.]$/.test(e.key)) kbd.querySelector(`[data-k="${e.key}"]`).click();
+    else if (e.key === 'Backspace') kbd.querySelector('[data-k="bs"]').click();
+    else if (e.key === 'Enter') commitKeypad();
+    else if (e.key === 'Escape') { closeKeypad(); render(); }
+    else if (e.key === '-') kbd.querySelector('[data-k="neg"]').click();
+    return;
+  }
+  if (e.key === ' ') {
+    e.preventDefault();
+    if (S.mode === 'auto' && S.screen === 'home') { if (S.phase === 'idle') startCycle(); else if (S.phase === 'complete') startUnload(); render(); }
+  } else if (e.key === 'Escape') { if (S.mode === 'auto' && S.phase !== 'idle') { cancelCycle('operator'); render(); } }
+  else if (e.key === 'h' || e.key === 'H') go('home');
+  else if (e.key === 'm' || e.key === 'M') setMode(S.mode === 'auto' ? 'manual' : 'auto');
+});
+
+/* ---------------- boot ---------------- */
+
+const style = document.createElement('style');
+style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+document.head.appendChild(style);
+
+log('Panel powered up — AUTO, Home');
+render();
+let last = performance.now();
+setInterval(() => {
+  const now = performance.now(); const dt = Math.min(0.25, (now - last) / 1000); last = now;
+  tick(dt);
+  if (S.dirty) { S.dirty = false; render(); } else renderDynamic();
+}, 100);
+
+// expose for the Tech Academy quiz harness, same shape as the other emulators
+window.SovdaBlend = { state: S, go, setMode, startCycle, startUnload, cancelCycle, factoryReset };
+})();
+</script>
+</body>
+</html>
